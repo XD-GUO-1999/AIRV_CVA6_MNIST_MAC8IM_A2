@@ -14,19 +14,21 @@ This implementation includes:
 -   Extended scoreboard dependency checking and forwarding
 -   CV-X-IF coprocessor integration
 -   Modified GNU assembler/toolchain
--   Questa RTL simulation support
+-   Questa RTL simulation
+-   Zybo Z7-20 FPGA execution
 
 ## Documentation
 
-For the MAC8IM architecture, instruction flow, register mapping, CV-X-IF
-integration, and a line-by-line description of every modified source
-file relative to the baseline:
+For environment setup, MNIST compilation, Questa simulation, FPGA
+execution, MAC8IM architecture, toolchain modifications, debugging,
+validation, and a line-by-line description of every modified source file
+relative to the Baseline:
 
 👉 [User and Implementation Guide](USER_GUIDE_MAC8IM_METHOD2.md)
 
-The guide compares the **baseline implementation directly with the final
-cleaned MAC8IM Method 2 implementation**. Intermediate development
-versions are intentionally not documented.
+The implementation guide compares the **Baseline directly with the final
+cleaned MAC8IM Method 2 source code**. Intermediate development versions
+are intentionally excluded.
 
 ## Source Code
 
@@ -36,7 +38,7 @@ The cleaned MAC8IM Method 2 source files are located in:
 cleaned_code/
 ```
 
-The main implementation path is:
+## Accelerator Overview
 
 ``` text
 NetworkPropagate.c
@@ -51,51 +53,22 @@ Scoreboard / Forwarding
         ↓
 CV-X-IF
         ↓
-MAC8IM Coprocessor
+8-way INT8 MAC coprocessor
         ↓
 Result / Writeback
 ```
 
-## MAC8IM Operand Mapping
-
-The MAC8IM instruction performs eight packed INT8 multiply-accumulate
-operations.
-
-The five source values are organized as:
+The MAC8IM operand mapping is:
 
 ``` text
-rs1      : packed input values 0–3
-rs2      : packed weight values 0–3
-old rd   : accumulator
-x28 / t3 : packed input values 4–7
-x29 / t4 : packed weight values 4–7
+rs1      -> packed input values 0–3
+rs2      -> packed weight values 0–3
+old rd   -> accumulator
+x28 / t3 -> packed input values 4–7
+x29 / t4 -> packed weight values 4–7
 ```
 
 The result is written back to `rd`.
 
-## Main Modified Components
-
-The implementation modifies the following parts of the baseline system:
-
--   CNN software implementation and MAC8IM inline assembly
--   GNU assembler instruction definition
--   CVA6 custom instruction decoder
--   GPR read-port configuration
--   Issue and operand-read path
--   Scoreboard dependency checking
--   Forwarding logic
--   CV-X-IF functional unit interface
--   CV-X-IF instruction recognition
--   Example coprocessor MAC datapath
-
-For the exact baseline and cleaned line numbers associated with each
-modification, see `USER_GUIDE_MAC8IM_METHOD2.md`.
-
-## Notes
-
-This package contains the cleaned source files relevant to MAC8IM Method
-2. It is intended to be integrated into the same complete AIRV/CVA6
-project revision used by the original implementation.
-
-After replacing the corresponding files, rebuild the project and run the
-same MNIST simulation to verify identical functional results.
+For exact file names, Baseline line numbers, cleaned line numbers, and
+the purpose of every modification, see `USER_GUIDE_MAC8IM_METHOD2.md`.
