@@ -110,7 +110,6 @@ module cva6
       logic    r_valid;
       r_chan_t r;
     },
-    //
     parameter type acc_cfg_t = logic,
     parameter acc_cfg_t AccCfg = '0,
     parameter type cvxif_req_t = cvxif_pkg::cvxif_req_t,
@@ -161,7 +160,8 @@ module cva6
   localparam bit EnableAccelerator = CVA6Cfg.RVV;  // Currently only used by V extension (Ara)
   localparam int unsigned NrWbPorts = (CVA6Cfg.CvxifEn || EnableAccelerator) ? 5 : 4;
 
-  localparam NrRgprPorts = 5;//modification for mac8
+  // MAC8IM requires rs1, rs2, rd/accumulator, x28, and x29.
+  localparam NrRgprPorts = 5;
 
   localparam config_pkg::cva6_cfg_t CVA6ExtendCfg = {
     CVA6Cfg.NrCommitPorts,

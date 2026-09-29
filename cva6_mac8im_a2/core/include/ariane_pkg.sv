@@ -72,7 +72,8 @@ package ariane_pkg;
   localparam REG_ADDR_SIZE = 5;
 
   // Read ports for general purpose register files
-  localparam NR_RGPR_PORTS = 5;  // modification: we need 5 read ports for MAC8, 2 for rs1 and rs2, and 3 for rd/acc, rs3 and rs4
+  // MAC8IM uses five GPR operands: rs1, rs2, rd/accumulator, x28, and x29.
+  localparam NR_RGPR_PORTS = 5;
 
   // static debug hartinfo
   // debug causes
@@ -443,10 +444,9 @@ package ariane_pkg;
     MULHU,
     MULHSU,
     MULW,
-    //modification
+    // Custom MAC8IM operation offloaded through CV-X-IF.
     MAC8IM,
-    //modification
-  
+
     // Divisions
     DIV,
     DIVU,
@@ -576,7 +576,7 @@ package ariane_pkg;
     riscv::xlen_t             operand_a;
     riscv::xlen_t             operand_b;
     riscv::xlen_t             imm;
-    //modification
+    // Additional source operands used by MAC8IM (x28 and x29).
     riscv::xlen_t             operand_d;
     riscv::xlen_t             operand_e;
     logic [TRANS_ID_BITS-1:0] trans_id;

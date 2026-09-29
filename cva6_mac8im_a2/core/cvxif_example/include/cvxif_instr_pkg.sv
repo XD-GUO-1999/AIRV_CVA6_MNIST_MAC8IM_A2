@@ -16,7 +16,8 @@ package cvxif_instr_pkg;
   } copro_issue_resp_t;
 
   // 2 Possible RISCV instructions for Coprocessor
-  parameter int unsigned NbInstr = 3; //modification, add one more instruction
+  // Two example instructions plus the custom MAC8IM instruction.
+  parameter int unsigned NbInstr = 3;
   parameter copro_issue_resp_t CoproInstr[NbInstr] = '{
       '{
           instr: 32'b00000_00_00000_00000_0_00_00000_0101011,  // custom1 opcode
@@ -42,8 +43,8 @@ package cvxif_instr_pkg;
               exc : 1'b0
           }
       },
-            //modification: to recognize the custom0 opcode
-        '{
+      // MAC8IM uses the custom-0 opcode (0001011) with funct3 = 001.
+      '{
             instr: 32'b00000_00_00000_00000_0_01_00000_0001011,  // custom0 opcode
             mask: 32'b11111_11_00000_00000_1_11_00000_1111111,
             resp : '{

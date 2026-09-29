@@ -33,15 +33,16 @@ module cvxif_fu
     output cvxif_pkg::cvxif_req_t                      cvxif_req_o,
     input  cvxif_pkg::cvxif_resp_t                     cvxif_resp_i
 );
-  localparam X_NUM_RS     = ariane_pkg::NR_RGPR_PORTS; //Modification automatic
+  localparam X_NUM_RS = ariane_pkg::NR_RGPR_PORTS;
 
   logic illegal_n, illegal_q;
   logic [TRANS_ID_BITS-1:0] illegal_id_n, illegal_id_q;
   logic [31:0] illegal_instr_n, illegal_instr_q;
   logic [X_NUM_RS-1:0] rs_valid;
 
-  if (cvxif_pkg::X_NUM_RS == 5) begin : gen_third_operand //modification
-    assign rs_valid = 5'b11111; //modification, add tow more place
+  // MAC8IM sends five valid source operands to the coprocessor.
+  if (cvxif_pkg::X_NUM_RS == 5) begin : gen_five_operands
+    assign rs_valid = 5'b11111;
   end else begin : gen_no_third_operand
     assign rs_valid = 2'b11;
   end
@@ -57,7 +58,7 @@ module cvxif_fu
       cvxif_req_o.x_issue_req.id    = fu_data_i.trans_id;
       cvxif_req_o.x_issue_req.rs[0] = fu_data_i.operand_a;
       cvxif_req_o.x_issue_req.rs[1] = fu_data_i.operand_b;
-      if (cvxif_pkg::X_NUM_RS == 5) begin//modification, 3 -> 5, and add 2 new operands
+      if (cvxif_pkg::X_NUM_RS == 5) begin
         cvxif_req_o.x_issue_req.rs[2] = fu_data_i.imm;
         cvxif_req_o.x_issue_req.rs[3] = fu_data_i.operand_d;
         cvxif_req_o.x_issue_req.rs[4] = fu_data_i.operand_e;

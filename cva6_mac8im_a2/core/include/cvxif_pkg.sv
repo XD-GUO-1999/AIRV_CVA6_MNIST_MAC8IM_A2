@@ -12,7 +12,8 @@
 package cvxif_pkg;
 
   localparam X_DATAWIDTH = riscv::XLEN;
-  localparam X_NUM_RS = ariane_pkg::NR_RGPR_PORTS;  //2 or 3 or 5, modification, automatic by the number of source register in the instruction
+  // Number of source operands exposed on CV-X-IF; MAC8IM uses five.
+  localparam X_NUM_RS = ariane_pkg::NR_RGPR_PORTS;
   localparam X_ID_WIDTH = ariane_pkg::TRANS_ID_BITS;
   localparam X_MEM_WIDTH = 64;
   localparam X_RFR_WIDTH = riscv::XLEN;

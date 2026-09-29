@@ -28,7 +28,7 @@ static int clamp(int v, int lo, int hi) {
     }
 }
 
-static void macsOnRange_with_mac4(const UDATA_T* __restrict inputs,
+static void macsOnRange_mac8im_contiguous(const UDATA_T* __restrict inputs,
                         const WDATA_T* __restrict weights,
                         SUM_T* __restrict weightedSum,
                         int nb_iterations)
@@ -39,9 +39,7 @@ static void macsOnRange_with_mac4(const UDATA_T* __restrict inputs,
     for (; iter <= nb_iterations - 8; iter += 8) {
         const UDATA_T *p_in = inputs + iter;
         const UDATA_T *p_wt = weights + iter;
-        // const UDATA_T *p_in_low = inputs + iter - 4;
-        // const UDATA_T *p_wt_low = weights + iter - 4;
-        
+
         asm volatile(
         "lw t3, 0(%[p_in]) \n\t"
         "lw t4, 0(%[p_wt]) \n\t"
@@ -49,7 +47,7 @@ static void macsOnRange_with_mac4(const UDATA_T* __restrict inputs,
         "lw t2, 4(%[p_wt]) \n\t"
         "mac8im %[sum], t1, t2 \n\t"
         : [sum] "+r" (sum)
-        : [p_in] "r" (p_in), 
+        : [p_in] "r" (p_in),
         [p_wt] "r" (p_wt)
         : "t1", "t2", "t3", "t4", "cc", "memory"
         );
@@ -63,7 +61,7 @@ static void macsOnRange_with_mac4(const UDATA_T* __restrict inputs,
      *weightedSum = sum;
 }
 
-static void macsOnRange_no_alined(const UDATA_T* __restrict inputs,
+static void macsOnRange_mac8im_conv2(const UDATA_T* __restrict inputs,
                         const WDATA_T* __restrict weights,
                         SUM_T* __restrict weightedSum,
                         int nb_iterations)
@@ -76,8 +74,7 @@ static void macsOnRange_no_alined(const UDATA_T* __restrict inputs,
         const UDATA_T *p_wt = weights + iter;
 
         uintptr_t addr_in = (uintptr_t)p_in;
-        //uintptr_t addr_wt = (uintptr_t)p_wt;
-        
+
         if((addr_in & 0x3) == 0){
             asm volatile(
                 "lw t3, 0(%[p_in]) \n\t"
@@ -87,7 +84,7 @@ static void macsOnRange_no_alined(const UDATA_T* __restrict inputs,
 
                 "mac8im %[sum], t1, t2 \n\t"
                 : [sum] "+r" (sum)
-                : [p_in] "r" (p_in), 
+                : [p_in] "r" (p_in),
                 [p_wt] "r" (p_wt)
                 : "t1", "t2", "t3", "t4", "cc", "memory"
             );
@@ -111,7 +108,7 @@ static void macsOnRange_no_alined(const UDATA_T* __restrict inputs,
      *weightedSum = sum;
 }
 
-static void macsOnRange_no_alined_for_fc2(const UDATA_T* __restrict inputs,
+static void macsOnRange_mac8im_fc2(const UDATA_T* __restrict inputs,
                         const WDATA_T* __restrict weights,
                         SUM_T* __restrict weightedSum,
                         int nb_iterations)
@@ -131,7 +128,7 @@ static void macsOnRange_no_alined_for_fc2(const UDATA_T* __restrict inputs,
 
                 "mac8im %[sum], t1, t2 \n\t"
                 : [sum] "+r" (sum)
-                : [p_in] "r" (p_in), 
+                : [p_in] "r" (p_in),
                 [p_wt] "r" (p_wt)
                 : "t1", "t2", "t3", "t4", "cc", "memory"
             );
@@ -139,7 +136,7 @@ static void macsOnRange_no_alined_for_fc2(const UDATA_T* __restrict inputs,
         for (; iter < nb_iterations; ++iter)
         {
             sum += inputs[iter] * weights[iter];
-        }        
+        }
     }else{
             for (; iter <= nb_iterations - 8; iter += 8) {
             sum += inputs[iter + 0] * weights[iter + 0];
@@ -149,7 +146,7 @@ static void macsOnRange_no_alined_for_fc2(const UDATA_T* __restrict inputs,
             sum += inputs[iter + 4] * weights[iter + 4];
             sum += inputs[iter + 5] * weights[iter + 5];
             sum += inputs[iter + 6] * weights[iter + 6];
-            sum += inputs[iter + 7] * weights[iter + 7];     
+            sum += inputs[iter + 7] * weights[iter + 7];
             }
 
             for (; iter < nb_iterations; ++iter)
@@ -202,7 +199,7 @@ static void convcellPropagate1(
     const BDATA_T* __restrict biasses,
     const WDATA_T* __restrict weights,
     int rescaling,
-    int NB_CHANNELS, 
+    int NB_CHANNELS,
     int CHANNELS_HEIGHT, int CHANNELS_WIDTH,
     int NB_OUTPUTS,
     int OUTPUTS_HEIGHT, int OUTPUTS_WIDTH,
@@ -233,9 +230,9 @@ static void convcellPropagate1(
             : max(PADDING_Y - (oy * STRIDE_Y), 0);
         const int syMax = (PADDING_Y == 0 //syMax is always KERNEL_HEIGHT, because CHANNELS_HEIGHT + PADDING_Y - (oy * STRIDE_Y) >= KERNEL_HEIGHT
                 && OUTPUTS_HEIGHT == OUTPUTS_HEIGHT_NOPAD) ? KERNEL_HEIGHT
-            : clamp(CHANNELS_HEIGHT + PADDING_Y - (oy * STRIDE_Y), 
+            : clamp(CHANNELS_HEIGHT + PADDING_Y - (oy * STRIDE_Y),
                     0, KERNEL_HEIGHT); //clamp helps us to know if CHANNELS_HEIGHT + PADDING_Y - (oy * STRIDE_Y) is between 0-KERNEL_HEIGHT
-        const int iy = (oy * STRIDE_Y) - PADDING_Y; 
+        const int iy = (oy * STRIDE_Y) - PADDING_Y;
 
         for (int ox = 0; ox < OUTPUTS_WIDTH; ++ox) {
             for (int output = 0; output < NB_OUTPUTS; ++output) { //accoding to the number of output to define the loop number
@@ -245,12 +242,12 @@ static void convcellPropagate1(
                 const int sxMax = (PADDING_X == 0 //sxMax is always KERNEL_HEIGHT, because CHANNELS_WIDTH + PADDING_X - (ox * STRIDE_Y) >= KERNEL_WIDTH
                         && OUTPUTS_WIDTH == OUTPUTS_WIDTH_NOPAD)
                             ? KERNEL_WIDTH
-                    : clamp(CHANNELS_WIDTH + PADDING_X - (ox * STRIDE_X), 
+                    : clamp(CHANNELS_WIDTH + PADDING_X - (ox * STRIDE_X),
                             0, KERNEL_WIDTH);
                 const int ix = (ox * STRIDE_X) - PADDING_X;
 
                 const int oPos = (ox + OUTPUTS_WIDTH * oy); //output position
-                int oOffset = OUTPUT_MEM_STRIDE * oPos; 
+                int oOffset = OUTPUT_MEM_STRIDE * oPos;
 
                 if (OUTPUT_MEM_WRAP_SIZE > 0 && oOffset >= OUTPUT_MEM_CONT_SIZE) {
                     oOffset += OUTPUT_MEM_WRAP_OFFSET - OUTPUT_MEM_CONT_OFFSET
@@ -289,7 +286,7 @@ static void convcellPropagate1(
                         && iOffset + KERNEL_WIDTH * NB_CHANNELS
                             > INPUT_MEM_CONT_SIZE)
                     {
-                        wrapInRange = true;//when there is wrapping memory, the size of kernel is not 1*1, the input is 1D, 
+                        wrapInRange = true;//when there is wrapping memory, the size of kernel is not 1*1, the input is 1D,
                                         //and ioffset + a line of data in kernel surpass the continue size,
                                         //the wrapInRange will be true, which means that the data in memory is not continue
                                         //it will surpass the boundary of contiguous memory
@@ -304,9 +301,9 @@ static void convcellPropagate1(
                                 || sxMax - sxMin == KERNEL_WIDTH)))                  // or there is padding but the kernel is not cut by the padding (the kernel is whole)
                                                                                      // to make sure the kernel in x is valid, we can use fonction direcetly
                     {
-                        macsOnRange_no_alined(
-                            inputs + iOffset, 
-                            weights + wOffset, 
+                        macsOnRange_mac8im_conv2(
+                            inputs + iOffset,
+                            weights + wOffset,
                             &weightedSum,
                             KERNEL_WIDTH * NB_CHANNELS * 2); //macs on a whole line of kernel, which is 2 times of NB_CHANNELS, because we unroll 2 times in y direction
                     }
@@ -354,7 +351,7 @@ static void convcellPropagate2(
     const BDATA_T* __restrict biasses,
     const WDATA_T* __restrict weights,
     int rescaling,
-    int NB_CHANNELS, 
+    int NB_CHANNELS,
     int CHANNELS_HEIGHT, int CHANNELS_WIDTH,
     int NB_OUTPUTS,
     int OUTPUTS_HEIGHT, int OUTPUTS_WIDTH,
@@ -385,7 +382,7 @@ static void convcellPropagate2(
             : max(PADDING_Y - (oy * STRIDE_Y), 0);
         const int syMax = (PADDING_Y == 0
                 && OUTPUTS_HEIGHT == OUTPUTS_HEIGHT_NOPAD) ? KERNEL_HEIGHT
-            : clamp(CHANNELS_HEIGHT + PADDING_Y - (oy * STRIDE_Y), 
+            : clamp(CHANNELS_HEIGHT + PADDING_Y - (oy * STRIDE_Y),
                     0, KERNEL_HEIGHT);
         const int iy = (oy * STRIDE_Y) - PADDING_Y;
 
@@ -397,7 +394,7 @@ static void convcellPropagate2(
                 const int sxMax = (PADDING_X == 0
                         && OUTPUTS_WIDTH == OUTPUTS_WIDTH_NOPAD)
                             ? KERNEL_WIDTH
-                    : clamp(CHANNELS_WIDTH + PADDING_X - (ox * STRIDE_X), 
+                    : clamp(CHANNELS_WIDTH + PADDING_X - (ox * STRIDE_X),
                             0, KERNEL_WIDTH);
                 const int ix = (ox * STRIDE_X) - PADDING_X;
 
@@ -450,9 +447,9 @@ static void convcellPropagate2(
                             && OUTPUTS_WIDTH == OUTPUTS_WIDTH_NOPAD)
                                 || sxMax - sxMin == KERNEL_WIDTH)))
                     {
-                        macsOnRange_with_mac4(
-                            inputs + iOffset, 
-                            weights + wOffset, 
+                        macsOnRange_mac8im_contiguous(
+                            inputs + iOffset,
+                            weights + wOffset,
                             &weightedSum,KERNEL_WIDTH * NB_CHANNELS);
                     }
                     else {
@@ -477,8 +474,8 @@ static void convcellPropagate2(
 
                             macsOnRange(
                                 // same input line so no wrapping can occur
-                                inputs + iOffsetInRange, 
-                                weights + wOffset + sx * NB_CHANNELS, 
+                                inputs + iOffsetInRange,
+                                weights + wOffset + sx * NB_CHANNELS,
                                 &weightedSum,NB_CHANNELS);
                         }
                     }
@@ -498,7 +495,7 @@ static void fccellPropagateUDATA_T(
     const BDATA_T* __restrict biasses,
     const WDATA_T* __restrict weights,
     const int rescaling,
-    int NB_CHANNELS, 
+    int NB_CHANNELS,
     int CHANNELS_HEIGHT, int CHANNELS_WIDTH,
     int NB_OUTPUTS,
     int OUTPUTS_HEIGHT, int OUTPUTS_WIDTH,
@@ -547,9 +544,9 @@ static void fccellPropagateUDATA_T(
                                     * (iy + CHANNELS_HEIGHT * och);
 
             if (!wrapInRange && INPUT_MEM_STRIDE == NB_CHANNELS) {
-                macsOnRange_with_mac4(
-                    inputs + iOffset, 
-                    weights + wOffset, 
+                macsOnRange_mac8im_contiguous(
+                    inputs + iOffset,
+                    weights + wOffset,
                     &weightedSum, NB_CHANNELS * CHANNELS_WIDTH);
             }
             else {
@@ -565,8 +562,8 @@ static void fccellPropagateUDATA_T(
                     }
 
                     macsOnRange(
-                        inputs + iOffsetInRange, 
-                        weights + wOffset + ix * NB_CHANNELS, 
+                        inputs + iOffsetInRange,
+                        weights + wOffset + ix * NB_CHANNELS,
                         &weightedSum, NB_CHANNELS);
                 }
             }
@@ -582,7 +579,7 @@ static void fccellPropagateDATA_T(
     const BDATA_T* __restrict biasses,
     const WDATA_T* __restrict weights,
     const int rescaling,
-    int NB_CHANNELS, 
+    int NB_CHANNELS,
     int CHANNELS_HEIGHT, int CHANNELS_WIDTH,
     int NB_OUTPUTS,
     int OUTPUTS_HEIGHT, int OUTPUTS_WIDTH,
@@ -631,9 +628,9 @@ static void fccellPropagateDATA_T(
                                     * (iy + CHANNELS_HEIGHT * och);
 
             if (!wrapInRange && INPUT_MEM_STRIDE == NB_CHANNELS) {
-                macsOnRange_no_alined_for_fc2(
-                    inputs + iOffset, 
-                    weights + wOffset, 
+                macsOnRange_mac8im_fc2(
+                    inputs + iOffset,
+                    weights + wOffset,
                     &weightedSum, NB_CHANNELS * CHANNELS_WIDTH);
             }
             else {
@@ -648,9 +645,9 @@ static void fccellPropagateDATA_T(
                                     - INPUT_MEM_CONT_SIZE;
                     }
 
-                    macsOnRange_no_alined_for_fc2(
-                        inputs + iOffsetInRange, 
-                        weights + wOffset + ix * NB_CHANNELS, 
+                    macsOnRange_mac8im_fc2(
+                        inputs + iOffsetInRange,
+                        weights + wOffset + ix * NB_CHANNELS,
                         &weightedSum, NB_CHANNELS);
                 }
             }
@@ -720,9 +717,9 @@ void propagate(const UDATA_T* inputs, Target_T* outputs, UDATA_T* maxPropagate_v
 #endif
 
     convcellPropagate1(inputs , conv1_output, conv1_biases, conv1_weights, 8,
-    CONV1_NB_CHANNELS, CONV1_CHANNELS_HEIGHT, CONV1_CHANNELS_WIDTH, CONV1_NB_OUTPUTS, CONV1_OUTPUTS_HEIGHT, 
-    CONV1_OUTPUTS_WIDTH, CONV1_PADDING_Y, CONV1_PADDING_X, CONV1_STRIDE_Y, CONV1_STRIDE_X, CONV1_KERNEL_HEIGHT, 
-    CONV1_KERNEL_WIDTH, CONV1_ACTIVATION, ENV_MEM_CONT_OFFSET, ENV_MEM_CONT_SIZE, ENV_MEM_WRAP_OFFSET, 
+    CONV1_NB_CHANNELS, CONV1_CHANNELS_HEIGHT, CONV1_CHANNELS_WIDTH, CONV1_NB_OUTPUTS, CONV1_OUTPUTS_HEIGHT,
+    CONV1_OUTPUTS_WIDTH, CONV1_PADDING_Y, CONV1_PADDING_X, CONV1_STRIDE_Y, CONV1_STRIDE_X, CONV1_KERNEL_HEIGHT,
+    CONV1_KERNEL_WIDTH, CONV1_ACTIVATION, ENV_MEM_CONT_OFFSET, ENV_MEM_CONT_SIZE, ENV_MEM_WRAP_OFFSET,
     ENV_MEM_WRAP_SIZE, ENV_MEM_STRIDE, CONV1_MEM_CONT_OFFSET, CONV1_MEM_CONT_SIZE, CONV1_MEM_WRAP_OFFSET, CONV1_MEM_WRAP_SIZE, CONV1_MEM_STRIDE);
 
     //convcellPropagate1(inputs , conv1_output, conv1_biases, conv1_weights, CONV1_SCALING);
@@ -750,12 +747,12 @@ void propagate(const UDATA_T* inputs, Target_T* outputs, UDATA_T* maxPropagate_v
 #endif
 
     convcellPropagate2(conv1_output , conv2_output, conv2_biases, conv2_weights, 8,
-    CONV2_NB_CHANNELS, CONV2_CHANNELS_HEIGHT, CONV2_CHANNELS_WIDTH, 
-    CONV2_NB_OUTPUTS, CONV2_OUTPUTS_HEIGHT, CONV2_OUTPUTS_WIDTH, 
-    CONV2_PADDING_Y, CONV2_PADDING_X, CONV2_STRIDE_Y, CONV2_STRIDE_X, 
-    CONV2_KERNEL_HEIGHT, CONV2_KERNEL_WIDTH, CONV2_ACTIVATION, CONV1_MEM_CONT_OFFSET, 
-    CONV1_MEM_CONT_SIZE, CONV1_MEM_WRAP_OFFSET, CONV1_MEM_WRAP_SIZE, 
-    CONV1_MEM_STRIDE, CONV2_MEM_CONT_OFFSET, CONV2_MEM_CONT_SIZE, CONV2_MEM_WRAP_OFFSET, 
+    CONV2_NB_CHANNELS, CONV2_CHANNELS_HEIGHT, CONV2_CHANNELS_WIDTH,
+    CONV2_NB_OUTPUTS, CONV2_OUTPUTS_HEIGHT, CONV2_OUTPUTS_WIDTH,
+    CONV2_PADDING_Y, CONV2_PADDING_X, CONV2_STRIDE_Y, CONV2_STRIDE_X,
+    CONV2_KERNEL_HEIGHT, CONV2_KERNEL_WIDTH, CONV2_ACTIVATION, CONV1_MEM_CONT_OFFSET,
+    CONV1_MEM_CONT_SIZE, CONV1_MEM_WRAP_OFFSET, CONV1_MEM_WRAP_SIZE,
+    CONV1_MEM_STRIDE, CONV2_MEM_CONT_OFFSET, CONV2_MEM_CONT_SIZE, CONV2_MEM_WRAP_OFFSET,
     CONV2_MEM_WRAP_SIZE, CONV2_MEM_STRIDE);
 
     //convcellPropagate2(conv1_output , conv2_output, conv2_biases, conv2_weights, CONV2_SCALING);
@@ -783,12 +780,12 @@ void propagate(const UDATA_T* inputs, Target_T* outputs, UDATA_T* maxPropagate_v
 #endif
 
     fccellPropagateUDATA_T(conv2_output , fc1_output, fc1_biases, fc1_weights, 8,
-    FC1_NB_CHANNELS, FC1_CHANNELS_HEIGHT, 
-    FC1_CHANNELS_WIDTH, FC1_NB_OUTPUTS, 
-    FC1_OUTPUTS_HEIGHT, FC1_OUTPUTS_WIDTH, FC1_ACTIVATION, 
-    CONV2_MEM_CONT_OFFSET, CONV2_MEM_CONT_SIZE, 
-    CONV2_MEM_WRAP_OFFSET, CONV2_MEM_WRAP_SIZE, 
-    CONV2_MEM_STRIDE, FC1_MEM_CONT_OFFSET, 
+    FC1_NB_CHANNELS, FC1_CHANNELS_HEIGHT,
+    FC1_CHANNELS_WIDTH, FC1_NB_OUTPUTS,
+    FC1_OUTPUTS_HEIGHT, FC1_OUTPUTS_WIDTH, FC1_ACTIVATION,
+    CONV2_MEM_CONT_OFFSET, CONV2_MEM_CONT_SIZE,
+    CONV2_MEM_WRAP_OFFSET, CONV2_MEM_WRAP_SIZE,
+    CONV2_MEM_STRIDE, FC1_MEM_CONT_OFFSET,
     FC1_MEM_CONT_SIZE, FC1_MEM_WRAP_OFFSET, FC1_MEM_WRAP_SIZE, FC1_MEM_STRIDE);
 
 #ifdef BENCHMARK
@@ -814,13 +811,13 @@ void propagate(const UDATA_T* inputs, Target_T* outputs, UDATA_T* maxPropagate_v
 #endif
 
     fccellPropagateDATA_T(fc1_output , fc2_output, fc2_biases, fc2_weights, 11,
-    FC2_NB_CHANNELS, FC2_CHANNELS_HEIGHT, 
-    FC2_CHANNELS_WIDTH, FC2_NB_OUTPUTS, 
-    FC2_OUTPUTS_HEIGHT, FC2_OUTPUTS_WIDTH, 
-    FC2_ACTIVATION, FC1_MEM_CONT_OFFSET, 
-    FC1_MEM_CONT_SIZE, FC1_MEM_WRAP_OFFSET, 
-    FC1_MEM_WRAP_SIZE, FC1_MEM_STRIDE, 
-    FC2_MEM_CONT_OFFSET, FC2_MEM_CONT_SIZE, 
+    FC2_NB_CHANNELS, FC2_CHANNELS_HEIGHT,
+    FC2_CHANNELS_WIDTH, FC2_NB_OUTPUTS,
+    FC2_OUTPUTS_HEIGHT, FC2_OUTPUTS_WIDTH,
+    FC2_ACTIVATION, FC1_MEM_CONT_OFFSET,
+    FC1_MEM_CONT_SIZE, FC1_MEM_WRAP_OFFSET,
+    FC1_MEM_WRAP_SIZE, FC1_MEM_STRIDE,
+    FC2_MEM_CONT_OFFSET, FC2_MEM_CONT_SIZE,
     FC2_MEM_WRAP_OFFSET, FC2_MEM_WRAP_SIZE, FC2_MEM_STRIDE);
 
 #ifdef BENCHMARK
@@ -834,12 +831,6 @@ void propagate(const UDATA_T* inputs, Target_T* outputs, UDATA_T* maxPropagate_v
     saveOutputs(FC2_NB_OUTPUTS, FC2_OUTPUTS_HEIGHT, FC2_OUTPUTS_WIDTH, FC2_MEM_CONT_OFFSET, FC2_MEM_CONT_SIZE, FC2_MEM_WRAP_OFFSET, FC2_MEM_WRAP_SIZE, FC2_MEM_STRIDE, fc2_output , fc2_stream, Network::Format::CHW);
     fclose(fc2_stream);
 #endif
-//modifcation debug
-    // printf("fc2_output = ");
-    // for (int i = 0; i < 10; i++) {
-    //     printf("%d ", fc2_output[i]);
-    // }
-    // printf("\n");
     maxPropagate1(fc2_output, outputs, maxPropagate_val, FC2_NB_OUTPUTS, FC2_OUTPUTS_HEIGHT, FC2_OUTPUTS_WIDTH, FC2_MEM_CONT_OFFSET, FC2_MEM_CONT_SIZE, FC2_MEM_WRAP_OFFSET, FC2_MEM_WRAP_SIZE, FC2_MEM_STRIDE);
 
 #ifdef SAVE_OUTPUTS

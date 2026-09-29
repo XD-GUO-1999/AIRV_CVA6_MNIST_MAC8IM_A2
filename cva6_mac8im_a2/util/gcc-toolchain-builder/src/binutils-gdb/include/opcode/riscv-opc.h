@@ -21,7 +21,7 @@
 #ifndef RISCV_ENCODING_H
 #define RISCV_ENCODING_H
 /* Instruction opcode macros.  */
-//modification
+/* Custom MAC8IM instruction. */
 #define MATCH_MAC8IM 0x100b
 #define MASK_MAC8IM 0xfe00707f
 #define MATCH_SLLI_RV32 0x1013
@@ -2786,7 +2786,6 @@
 #define CSR_VLENB 0xc22
 #endif /* RISCV_ENCODING_H */
 #ifdef DECLARE_INSN
-//modification
 DECLARE_INSN(mac8im, MATCH_MAC8IM, MASK_MAC8IM)
 DECLARE_INSN(slli_rv32, MATCH_SLLI_RV32, MASK_SLLI_RV32)
 DECLARE_INSN(srli_rv32, MATCH_SRLI_RV32, MASK_SRLI_RV32)

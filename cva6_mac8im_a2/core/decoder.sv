@@ -1186,23 +1186,21 @@ module decoder
           instruction_o.fu      = ALU;
           instruction_o.rd[4:0] = instr.utype.rd;
         end
-// ↓↓↓ Modification ↓↓↓
-        // Custom instruction MAC8 (Opcode: 0001011)
-        7'b0001011: begin 
-          imm_select             = RS3;             // use RS3 to fetch the accumulator
-          instruction_o.fu       = CVXIF;            // modification, use cvxif
-          instruction_o.rs1[4:0] = instr.rtype.rs1; // Extract source register 1 (t1)
-          instruction_o.rs2[4:0] = instr.rtype.rs2; // Extract source register 2 (t2)
-          instruction_o.rd[4:0]  = instr.rtype.rd;  // Extract destination register (sum)
+        // MAC8IM: custom-0 opcode (0001011), funct3 = 001.
+        7'b0001011: begin
+          // rd is also read as the accumulator before being written back.
+          imm_select             = RS3;
+          instruction_o.fu       = CVXIF;
+          instruction_o.rs1[4:0] = instr.rtype.rs1;
+          instruction_o.rs2[4:0] = instr.rtype.rs2;
+          instruction_o.rd[4:0]  = instr.rtype.rd;
 
-          // Check if funct3 is 001 as specified
           if (instr.rtype.funct3 == 3'b001) begin
-            instruction_o.op = ariane_pkg::MAC8IM;  // Attach the MAC8 label we registered in ariane_pkg
+            instruction_o.op = ariane_pkg::MAC8IM;
           end else begin
-            illegal_instr = 1'b1;                 // If funct3 is incorrect, trigger an illegal instruction exception
+            illegal_instr = 1'b1;
           end
         end
-        // ↑↑↑ Modification ↑↑↑
         default: illegal_instr = 1'b1;
       endcase
     end

@@ -6,7 +6,7 @@
 // You may obtain a copy of the License at https://solderpad.org/licenses/
 //
 // Original Author: Guillaume Chauvon (guillaume.chauvon@thalesgroup.com)
-// Example coprocessor adds rs1,rs2(,rs3) together and gives back the result to the CPU via the CoreV-X-Interface.
+// Example CV-X-IF coprocessor extended with the MAC8IM datapath.
 // Coprocessor delays the sending of the result depending on result least significant bits.
 
 module cvxif_example_coprocessor
@@ -142,20 +142,20 @@ module cvxif_example_coprocessor
       .overflow_o()
   );
 
-  //modification : the logic to compute the result
-  logic signed [31:0] rs1_val, rs2_val, acc_val, rs4_val, rs5_val; //coprocessor recives 3 operands in 32bits
-  logic signed [15:0] p0, p1, p2, p3, p4, p5, p6, p7; // the results of multiplication of 8 bits
-  logic signed [31:0] mac_result; // the final result of the mac operation to send back to the CPU, so we need 32 bits
+  // MAC8IM consumes two packed input/weight pairs plus the rd accumulator.
+  logic signed [31:0] rs1_val, rs2_val, acc_val, rs4_val, rs5_val;
+  logic signed [15:0] p0, p1, p2, p3, p4, p5, p6, p7;
+  logic signed [31:0] mac_result;
 
   always_comb begin
-    //modification
     rs1_val = $signed(req_o.req.rs[0]); //rs1
     rs2_val = $signed(req_o.req.rs[1]); //rs2
     acc_val = $signed(req_o.req.rs[2]); //accumulator value
     rs4_val = $signed(req_o.req.rs[3]); //rs4
     rs5_val = $signed(req_o.req.rs[4]); //rs5
 
-    // we divide the 32 bits into 4 parts of 8 bits, and as rs1 must be positive, so we add a 0 in advance to avoid the fault
+    // Split each packed 32-bit operand into four 8-bit lanes. Inputs are
+    // unsigned (zero-extended to 9 bits); weights are interpreted as signed.
     p0 = $signed({1'b0, rs1_val[7:0]}) * $signed(rs2_val[7:0]);
     p1 = $signed({1'b0, rs1_val[15:8]}) * $signed(rs2_val[15:8]);
     p2 = $signed({1'b0, rs1_val[23:16]}) * $signed(rs2_val[23:16]);
@@ -164,12 +164,11 @@ module cvxif_example_coprocessor
     p5 = $signed({1'b0, rs4_val[15:8]}) * $signed(rs5_val[15:8]);
     p6 = $signed({1'b0, rs4_val[23:16]}) * $signed(rs5_val[23:16]);
     p7 = $signed({1'b0, rs4_val[31:24]}) * $signed(rs5_val[31:24]);
-    mac_result = acc_val + 32'(p0)+ 32'(p1)+ 32'(p2)+ 32'(p3) + 32'(p4) + 32'(p5) + 32'(p6) + 32'(p7); // we add the result togeter
+    mac_result = acc_val + 32'(p0) + 32'(p1) + 32'(p2) + 32'(p3)
+                           + 32'(p4) + 32'(p5) + 32'(p6) + 32'(p7);
 
-    //x_result_o.data    = req_o.req.rs[0] + req_o.req.rs[1] + (X_NUM_RS == 3 ? req_o.req.rs[2] : 0);
-    x_result_o.data = mac_result; //send the result back to CPU
-    //x_result_valid_o   = (c == x_result_o.data[3:0]) && ~fifo_empty ? 1 : 0;
-    x_result_valid_o   = ~fifo_empty ? 1 : 0;
+    x_result_o.data    = mac_result;
+    x_result_valid_o   = ~fifo_empty;
     x_result_o.id      = req_o.req.id;
     x_result_o.rd      = req_o.req.instr[11:7];
     x_result_o.we      = req_o.resp.writeback & x_result_valid_o;
