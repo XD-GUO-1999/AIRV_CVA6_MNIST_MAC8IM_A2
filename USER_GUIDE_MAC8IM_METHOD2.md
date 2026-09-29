@@ -1,4 +1,4 @@
-# AIRV CVA6 MAC8IM Method 2 --- User Guide
+# AIRV CVA6 MAC8IM Method 2 — User Guide
 
 This guide explains how to configure the AIRV/CVA6 environment, compile
 the MNIST application, run RTL simulation with Questa, execute the
@@ -392,21 +392,26 @@ rd writeback
 After integrating the cleaned files into the complete project:
 
 ``` bash
+
 # 1. Load environment
+
 source /path/to/setup.sh
 
 # 2. Verify tools
+
 which riscv-none-elf-gcc
 which vsim
 which vivado
 which openocd
 
 # 3. Compile MNIST
+
 cd $PROJECTROOT/sw/app
 make clean
 make mnist
 
 # 4. Run RTL simulation
+
 cd $PROJECTROOT
 make sim APP=mnist
 ```
@@ -542,7 +547,7 @@ result/writeback path.
 
 ------------------------------------------------------------------------
 
-## 13. Notes on Line Numbers
+## 12.1 Notes on Line Numbers
 
 The implementation guide below compares:
 
@@ -570,9 +575,9 @@ line number and the described symbol/function as the anchor.
 
 ------------------------------------------------------------------------
 
-# 14. Implementation Guide --- Baseline to Cleaned MAC8IM
+## 13. Implementation Guide — Baseline to Cleaned MAC8IM
 
-## 14.1 Architecture summary
+### 13.1 Architecture Summary
 
 MAC8IM Method 2 executes the custom instruction through CV-X-IF.
 
@@ -603,84 +608,84 @@ operands.
 
 ------------------------------------------------------------------------
 
-## 14.2 Detailed file-by-file modifications
+### 13.2 Detailed File-by-File Modifications
 
-### 14.2.1 `NetworkPropagate.c`
+#### NetworkPropagate.c
 
-### MAC8IM software helpers
+##### MAC8IM software helpers
 
-  ----------------------------------------------------------------------------
-  Baseline            Cleaned MAC8IM      Modification
-  ------------------- ------------------- ------------------------------------
-  After L28           L31--62             Adds
-                                          `macsOnRange_mac8im_contiguous()`.
-                                          Processes eight MACs per iteration.
-                                          `t3/t4` carry the first four packed
-                                          values and `t1/t2` the second four;
-                                          `mac8im` accumulates into `sum`.
-                                          Remaining elements use the scalar
-                                          loop.
+  ------------------------------------------------------------------------
+  Baseline          Cleaned MAC8IM    Modification
+  ----------------- ----------------- ------------------------------------
+  After L28         L31--62           Adds
+                                      `macsOnRange_mac8im_contiguous()`.
+                                      Processes eight MACs per iteration.
+                                      `t3/t4` carry the first four packed
+                                      values and `t1/t2` the second four;
+                                      `mac8im` accumulates into `sum`.
+                                      Remaining elements use the scalar
+                                      loop.
 
-  After L28           L64--109            Adds `macsOnRange_mac8im_conv2()`.
-                                          Provides the Conv2-specific two-row
-                                          access pattern. The second packed
-                                          input uses offset `24(%[p_in])`;
-                                          unaligned input falls back to eight
-                                          scalar MACs.
+  After L28         L64--109          Adds `macsOnRange_mac8im_conv2()`.
+                                      Provides the Conv2-specific two-row
+                                      access pattern. The second packed
+                                      input uses offset `24(%[p_in])`;
+                                      unaligned input falls back to eight
+                                      scalar MACs.
 
-  After L28           L111--158           Adds `macsOnRange_mac8im_fc2()`.
-                                          Uses MAC8IM when the checked address
-                                          is aligned and preserves a scalar
-                                          eight-element fallback otherwise.
-  ----------------------------------------------------------------------------
+  After L28         L111--158         Adds `macsOnRange_mac8im_fc2()`.
+                                      Uses MAC8IM when the checked address
+                                      is aligned and preserves a scalar
+                                      eight-element fallback otherwise.
+  ------------------------------------------------------------------------
 
-### Convolution integration
+##### Convolution integration
 
-  ---------------------------------------------------------------------------------
-  Baseline                 Cleaned MAC8IM      Modification
-  ------------------------ ------------------- ------------------------------------
-  L67--208                 L196--345           Adds a MAC8IM-oriented convolution
-  (`convcellPropagate1`)                       loop that processes two kernel rows
-                                               at a time (`sy += 2`) and calls
-                                               `macsOnRange_mac8im_conv2()` for the
-                                               contiguous case. Scalar
-                                               `macsOnRange()` remains as the
-                                               fallback for non-contiguous/wrapped
-                                               accesses.
+  ------------------------------------------------------------------------------
+  Baseline                 Cleaned MAC8IM   Modification
+  ------------------------ ---------------- ------------------------------------
+  L67--208                 L196--345        Adds a MAC8IM-oriented convolution
+  (`convcellPropagate1`)                    loop that processes two kernel rows
+                                            at a time (`sy += 2`) and calls
+                                            `macsOnRange_mac8im_conv2()` for the
+                                            contiguous case. Scalar
+                                            `macsOnRange()` remains as the
+                                            fallback for non-contiguous/wrapped
+                                            accesses.
 
-  Baseline `macsOnRange()` L450                In the other convolution path,
-  call around L169                             replaces the contiguous scalar range
-                                               call with
-                                               `macsOnRange_mac8im_contiguous()`.
+  Baseline `macsOnRange()` L450             In the other convolution path,
+  call around L169                          replaces the contiguous scalar range
+                                            call with
+                                            `macsOnRange_mac8im_contiguous()`.
 
-  L467                     L749                Changes the Conv2 network call from
-                                               `convcellPropagate1(...)` to
-                                               `convcellPropagate2(...)`, selecting
-                                               the dedicated Conv2 implementation.
-  ---------------------------------------------------------------------------------
+  L467                     L749             Changes the Conv2 network call from
+                                            `convcellPropagate1(...)` to
+                                            `convcellPropagate2(...)`, selecting
+                                            the dedicated Conv2 implementation.
+  ------------------------------------------------------------------------------
 
-### Fully connected integration
+##### Fully connected integration
 
-  ----------------------------------------------------------------------------
-  Baseline            Cleaned MAC8IM      Modification
-  ------------------- ------------------- ------------------------------------
-  L265                L547                Replaces the contiguous FC range
-                                          with
-                                          `macsOnRange_mac8im_contiguous()`.
+  ------------------------------------------------------------------------
+  Baseline          Cleaned MAC8IM    Modification
+  ----------------- ----------------- ------------------------------------
+  L265              L547              Replaces the contiguous FC range
+                                      with
+                                      `macsOnRange_mac8im_contiguous()`.
 
-  L349                L631                Replaces the FC2 contiguous range
-                                          with `macsOnRange_mac8im_fc2()`.
+  L349              L631              Replaces the FC2 contiguous range
+                                      with `macsOnRange_mac8im_fc2()`.
 
-  L366                L648                Replaces the FC2 wrapped/per-line
-                                          range with
-                                          `macsOnRange_mac8im_fc2()`.
-  ----------------------------------------------------------------------------
+  L366              L648              Replaces the FC2 wrapped/per-line
+                                      range with
+                                      `macsOnRange_mac8im_fc2()`.
+  ------------------------------------------------------------------------
 
 Whitespace-only end-of-file changes are not architecturally relevant.
 
 ------------------------------------------------------------------------
 
-### 14.2.2 `cv32a6_ima_sv32_fpga_config_pkg.sv`
+#### cv32a6_ima_sv32_fpga_config_pkg.sv
 
   Baseline   Cleaned MAC8IM   Modification
   ---------- ---------------- ----------------------------------------------
@@ -691,7 +696,7 @@ coprocessor.
 
 ------------------------------------------------------------------------
 
-### 14.2.3 `cva6.sv`
+#### cva6.sv
 
   Baseline   Cleaned MAC8IM   Modification
   ---------- ---------------- ----------------------------------------
@@ -702,7 +707,7 @@ same instruction interface.
 
 ------------------------------------------------------------------------
 
-### 14.2.4 `ariane_pkg.sv`
+#### ariane_pkg.sv
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -723,7 +728,7 @@ the fourth and fifth source values.
 
 ------------------------------------------------------------------------
 
-### 14.2.5 `decoder.sv`
+#### decoder.sv
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -748,12 +753,12 @@ MAC8IM.
 
 ------------------------------------------------------------------------
 
-### 14.2.6 `issue_read_operands.sv`
+#### issue_read_operands.sv
 
 This file contains the largest CPU microarchitecture change because it
 turns the operand path into a five-source path.
 
-### New rs4/rs5 interface and storage
+##### New rs4/rs5 interface and storage
 
   -----------------------------------------------------------------------
   Baseline              Cleaned MAC8IM        Modification
@@ -776,7 +781,7 @@ turns the operand path into a five-source path.
                                               `fu_data_o`.
   -----------------------------------------------------------------------
 
-### Register mapping and hazard handling
+##### Register mapping and hazard handling
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -816,38 +821,38 @@ turns the operand path into a five-source path.
                                                   rs5.
   -----------------------------------------------------------------------
 
-### Register-file read ports
+##### Register-file read ports
 
-  --------------------------------------------------------------------------------
-  Baseline           Cleaned MAC8IM     Modification
-  ------------------ ------------------ ------------------------------------------
-  L442--443          L494--505          Adds the five-port `raddr_pack`. MAC8IM
-                                        read order is `{x29, x28, rd, rs2, rs1}`.
-                                        A three-port fallback remains for the
-                                        existing path.
+  ----------------------------------------------------------------------------
+  Baseline         Cleaned MAC8IM   Modification
+  ---------------- ---------------- ------------------------------------------
+  L442--443        L494--505        Adds the five-port `raddr_pack`. MAC8IM
+                                    read order is `{x29, x28, rd, rs2, rs1}`.
+                                    A three-port fallback remains for the
+                                    existing path.
 
-  L538               L600               Changes the `operand_c` GPR generate
-                                        condition to the five-port configuration.
+  L538             L600             Changes the `operand_c` GPR generate
+                                    condition to the five-port configuration.
 
-  L551               L613--617          Changes `operand_c_regfile` selection for
-                                        five ports and connects
-                                        `rdata[3]`/`rdata[4]` to
-                                        `operand_d_regfile`/`operand_e_regfile`.
+  L551             L613--617        Changes `operand_c_regfile` selection for
+                                    five ports and connects
+                                    `rdata[3]`/`rdata[4]` to
+                                    `operand_d_regfile`/`operand_e_regfile`.
 
-  After L560         L627--630          Resets `operand_d_q` and `operand_e_q`.
+  After L560       L627--630        Resets `operand_d_q` and `operand_e_q`.
 
-  After L570         L641--644          Registers `operand_d_n` and `operand_e_n`.
+  After L570       L641--644        Registers `operand_d_n` and `operand_e_n`.
 
-  L583               L657               Extends the supported GPR-port assertion
-                                        to include five ports.
-  --------------------------------------------------------------------------------
+  L583             L657             Extends the supported GPR-port assertion
+                                    to include five ports.
+  ----------------------------------------------------------------------------
 
 **Result:** the execution data sent toward CV-X-IF now contains all five
 MAC8IM values.
 
 ------------------------------------------------------------------------
 
-### 14.2.7 `issue_stage.sv`
+#### issue_stage.sv
 
   ----------------------------------------------------------------------
   Baseline               Cleaned MAC8IM         Modification
@@ -876,9 +881,9 @@ Stage, Scoreboard and Read Operands.
 
 ------------------------------------------------------------------------
 
-### 14.2.8 `scoreboard.sv`
+#### scoreboard.sv
 
-### Interface and dependency requests
+##### Interface and dependency requests
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -910,7 +915,7 @@ Stage, Scoreboard and Read Operands.
                                                   outputs.
   -----------------------------------------------------------------------
 
-### Forwarding arbitration
+##### Forwarding arbitration
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -930,7 +935,7 @@ physical read ports.
 
 ------------------------------------------------------------------------
 
-### 14.2.9 `cvxif_fu.sv`
+#### cvxif_fu.sv
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -960,23 +965,23 @@ The resulting CV-X-IF mapping is:
 
 ------------------------------------------------------------------------
 
-### 14.2.10 `cvxif_pkg.sv`
+#### cvxif_pkg.sv
 
-  --------------------------------------------------------------------------
-  Baseline              Cleaned MAC8IM        Modification
-  --------------------- --------------------- ------------------------------
-  L15                   L15                   Keeps `X_NUM_RS` tied to
-                                              `ariane_pkg::NR_RGPR_PORTS`;
-                                              with the MAC8IM configuration
-                                              this now evaluates to five.
+  ------------------------------------------------------------------------
+  Baseline             Cleaned MAC8IM       Modification
+  -------------------- -------------------- ------------------------------
+  L15                  L15                  Keeps `X_NUM_RS` tied to
+                                            `ariane_pkg::NR_RGPR_PORTS`;
+                                            with the MAC8IM configuration
+                                            this now evaluates to five.
 
-  --------------------------------------------------------------------------
+  ------------------------------------------------------------------------
 
 The functional effect comes from `NR_RGPR_PORTS = 5` in `ariane_pkg.sv`.
 
 ------------------------------------------------------------------------
 
-### 14.2.11 `cvxif_instr_pkg.sv`
+#### cvxif_instr_pkg.sv
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -1000,7 +1005,7 @@ instruction is supported.
 
 ------------------------------------------------------------------------
 
-### 14.2.12 `cvxif_example_coprocessor.sv`
+#### cvxif_example_coprocessor.sv
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -1033,9 +1038,9 @@ Important arithmetic behavior:
 
 ------------------------------------------------------------------------
 
-## 3.13 Toolchain instruction definition
+#### Toolchain Instruction Definition
 
-### `rv_i`
+##### `rv_i`
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -1049,23 +1054,23 @@ Important arithmetic behavior:
 
   -----------------------------------------------------------------------
 
-### `riscv-opc.h`
+##### `riscv-opc.h`
 
-  --------------------------------------------------------------------------
-  Baseline              Cleaned MAC8IM        Modification
-  --------------------- --------------------- ------------------------------
-  L24--25               L24--26               Replaces
-                                              `MATCH_MAC4/MASK_MAC4` with
-                                              `MATCH_MAC8IM/MASK_MAC8IM`.
-                                              Match remains `0x100b`; mask
-                                              remains `0xfe00707f`.
+  ------------------------------------------------------------------------
+  Baseline             Cleaned MAC8IM       Modification
+  -------------------- -------------------- ------------------------------
+  L24--25              L24--26              Replaces
+                                            `MATCH_MAC4/MASK_MAC4` with
+                                            `MATCH_MAC8IM/MASK_MAC8IM`.
+                                            Match remains `0x100b`; mask
+                                            remains `0xfe00707f`.
 
-  L2788                 L2789--2790           Replaces
-                                              `DECLARE_INSN(mac4, ...)` with
-                                              `DECLARE_INSN(mac8im, ...)`.
-  --------------------------------------------------------------------------
+  L2788                L2789--2790          Replaces
+                                            `DECLARE_INSN(mac4, ...)` with
+                                            `DECLARE_INSN(mac8im, ...)`.
+  ------------------------------------------------------------------------
 
-### `riscv-opc.c`
+##### `riscv-opc.c`
 
   -----------------------------------------------------------------------
   Baseline                Cleaned MAC8IM          Modification
@@ -1085,7 +1090,7 @@ implicit operands supplied by the software convention.
 
 ------------------------------------------------------------------------
 
-### 14.2.14 `instr_decoder.sv`
+#### instr_decoder.sv
 
 **No change.**
 
@@ -1095,7 +1100,7 @@ the MAC8IM modification.
 
 ------------------------------------------------------------------------
 
-## 15. End-to-End Instruction Flow --- Implementation View
+## 14. End-to-End Instruction Flow — Implementation View
 
 1.  `NetworkPropagate.c` packs data into 32-bit words and loads the
     additional packed values into `t3`/`t4` (x28/x29).
@@ -1118,7 +1123,7 @@ the MAC8IM modification.
 
 ------------------------------------------------------------------------
 
-## 16. Files to Read First
+## 15. Files to Read First
 
 For a new developer, the recommended order is:
 
@@ -1131,7 +1136,7 @@ For a new developer, the recommended order is:
 
 ------------------------------------------------------------------------
 
-## 17. Verification Note
+## 16. Verification Note
 
 The supplied archives contain the 16 relevant files rather than a
 complete standalone CVA6 build tree, so this guide does not claim a new
@@ -1153,7 +1158,7 @@ The line numbers in this guide refer exactly to the delivered
 
 ------------------------------------------------------------------------
 
-## 18. Recommended Repository Freeze
+## 17. Recommended Repository Freeze
 
 After confirming that the cleaned source, simulation result and this
 guide all correspond to the same version, freeze the repository with a
